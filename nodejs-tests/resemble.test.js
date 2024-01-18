@@ -14,12 +14,12 @@ describe("resemble", () => {
                 .onComplete((data) => {
                     expect(data.diffBounds.bottom).toEqual(431);
                     expect(data.diffBounds.left).toEqual(22);
-                    expect(data.diffBounds.right).toEqual(450);
+                    expect(data.diffBounds.right).toEqual(454); // 450 -> 454
                     expect(data.diffBounds.top).toEqual(58);
                     expect(data.dimensionDifference.height).toEqual(0);
                     expect(data.dimensionDifference.width).toEqual(0);
                     expect(data.isSameDimensions).toBe(true);
-                    expect(data.misMatchPercentage).toEqual("8.66");
+                    expect(data.misMatchPercentage).toEqual("8.65"); // 8.66 -> 8.65
                     resolve();
                 });
         });
@@ -41,12 +41,12 @@ describe("resemble", () => {
 
                     expect(data.diffBounds.bottom).toEqual(431);
                     expect(data.diffBounds.left).toEqual(22);
-                    expect(data.diffBounds.right).toEqual(450);
+                    expect(data.diffBounds.right).toEqual(454);
                     expect(data.diffBounds.top).toEqual(58);
                     expect(data.dimensionDifference.height).toEqual(0);
                     expect(data.dimensionDifference.width).toEqual(0);
                     expect(data.isSameDimensions).toBe(true);
-                    expect(data.misMatchPercentage).toEqual("8.66");
+                    expect(data.misMatchPercentage).toEqual("8.65");
                     resolve();
                 });
         });
@@ -74,12 +74,12 @@ describe("resemble", () => {
                 .onComplete((data) => {
                     expect(data.diffBounds.bottom).toEqual(431);
                     expect(data.diffBounds.left).toEqual(22);
-                    expect(data.diffBounds.right).toEqual(450);
+                    expect(data.diffBounds.right).toEqual(454);
                     expect(data.diffBounds.top).toEqual(58);
                     expect(data.dimensionDifference.height).toEqual(0);
                     expect(data.dimensionDifference.width).toEqual(0);
                     expect(data.isSameDimensions).toBe(true);
-                    expect(data.misMatchPercentage).toEqual("8.66");
+                    expect(data.misMatchPercentage).toEqual("8.65");
                     resolve();
                 });
         });

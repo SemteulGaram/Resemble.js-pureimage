@@ -64,9 +64,178 @@ var isNode = function () {
     var loadNodeCanvasImage;
 
     if (isNode()) {
-        Canvas = require("canvas"); // eslint-disable-line global-require
-        Img = Canvas.Image;
-        loadNodeCanvasImage = Canvas.loadImage;
+        // Canvas = require("canvas"); // eslint-disable-line global-require
+        // Img = Canvas.Image;
+        // loadNodeCanvasImage = Canvas.loadImage;
+
+        const fs = require("fs"); // eslint-disable-line global-require
+        const http = require("http"); // eslint-disable-line global-require
+        const https = require("https"); // eslint-disable-line global-require
+        const pureimage = require("pureimage"); // eslint-disable-line global-require
+        const PNG = require("pngjs").PNG; // eslint-disable-line global-require
+        const JPEG = require("jpeg-js"); // eslint-disable-line global-require
+
+        pureimage.Context.prototype.createImageData = function (param1, param2) {
+            if (typeof param1 === "number" && typeof param2 === "number") {
+                return new pureimage.Bitmap(param1, param2);
+            } else if (param1.width && param1.height) {
+                return new pureimage.Bitmap(param1.width, param1.height);
+            }
+            throw new Error("Invalid arguments");
+        };
+
+        class Image extends pureimage.Bitmap {
+            constructor(width = 1, height = 1) {
+                super(width, height);
+                this.onload = null;
+                this.onerror = null;
+            }
+
+            getImageType(buffer) {
+                // PNG signature
+                if (
+                    buffer[0] === 0x89 &&
+                    buffer[1] === 0x50 &&
+                    buffer[2] === 0x4e &&
+                    buffer[3] === 0x47 &&
+                    buffer[4] === 0x0d &&
+                    buffer[5] === 0x0a &&
+                    buffer[6] === 0x1a &&
+                    buffer[7] === 0x0a
+                ) {
+                    return "png";
+                }
+                // JPEG signature
+                else if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[buffer.length - 2] === 0xff && buffer[buffer.length - 1] === 0xd9) {
+                    return "jpeg";
+                }
+                return "unknown";
+            }
+
+            loadFromBuffer(buffer) {
+                if (Buffer.isBuffer(buffer) === false) {
+                    throw new Error("Argument must be a Buffer");
+                }
+
+                try {
+                    const type = this.getImageType(buffer);
+                    if (type === "png") {
+                        const png = PNG.sync.read(buffer);
+                        this.width = png.width;
+                        this.height = png.height;
+                        // Buffer to Uint8Array
+                        this.data = new Uint8Array(png.data);
+                    } else if (type === "jpeg") {
+                        const jpeg = JPEG.decode(buffer);
+                        this.width = jpeg.width;
+                        this.height = jpeg.height;
+                        // Buffer to Uint8Array
+                        this.data = new Uint8Array(jpeg.data);
+                    } else {
+                        throw new Error("Unsupported image type");
+                    }
+                    if (this.onload) {
+                        this.onload();
+                    }
+                } catch (err) {
+                    if (this.onerror) {
+                        this.onerror(err);
+                    }
+                }
+            }
+
+            // https://github.com/Automattic/node-canvas/blob/master/lib/image.js#L22
+            /**
+             * src setter. Valid values:
+             *  * `data:` URI
+             *  * Local file path
+             *  * HTTP or HTTPS URL
+             *  * Buffer containing image data (i.e. not a `data:` URI stored in a Buffer)
+             *
+             * @param {String|Buffer} val filename, buffer, data URI, URL
+             * @api public
+             */
+            set src(val) {
+                this._originalSource = val;
+                if (typeof val === "string") {
+                    if (/^\s*data:/.test(val)) {
+                        // data: URI
+                        const commaI = val.indexOf(",");
+                        // 'base64' must come before the comma
+                        const isBase64 = val.lastIndexOf("base64", commaI) !== -1;
+                        const content = val.slice(commaI + 1);
+                        this.loadFromBuffer(Buffer.from(content, isBase64 ? "base64" : "utf8"));
+                    } else if (/^\s*https?:\/\//.test(val)) {
+                        // remote URL
+                        const protocol = val.startsWith("https") ? https : http;
+                        protocol
+                            .get(val, (response) => {
+                                const data = [];
+                                response
+                                    .on("data", (chunk) => {
+                                        data.push(chunk);
+                                    })
+                                    .on("end", () => {
+                                        const buffer = Buffer.concat(data);
+                                        this.loadFromBuffer(buffer);
+                                    });
+                            })
+                            .on("error", (err) => {
+                                if (this.onerror) {
+                                    this.onerror(err);
+                                }
+                            });
+                    } else {
+                        // local file path assumed
+                        fs.readFile(val, (err, data) => {
+                            if (err) {
+                                if (this.onerror) {
+                                    this.onerror(err);
+                                }
+                            } else {
+                                this.loadFromBuffer(data);
+                            }
+                        });
+                    }
+                } else if (Buffer.isBuffer(val)) {
+                    this.loadFromBuffer(val);
+                }
+            }
+
+            get src() {
+                // TODO https://github.com/Automattic/node-canvas/issues/118
+                return this._originalSource;
+            }
+        }
+
+        Canvas = {
+            createCanvas: function (width, height) {
+                return new Image(width, height);
+            }
+        };
+        Img = Image;
+        // https://github.com/Automattic/node-canvas/blob/25fbac52c8f2d63468992d7c9f110aff6ef58dfc/index.js#L25
+        loadNodeCanvasImage = function loadImage(src) {
+            return new Promise((resolve, reject) => {
+                const image = new Image();
+
+                function cleanup() {
+                    image.onload = null;
+                    image.onerror = null;
+                }
+
+                image.onload = () => {
+                    cleanup();
+                    resolve(image);
+                };
+                image.onerror = (err) => {
+                    cleanup();
+                    reject(err);
+                };
+
+                image.src = src;
+            });
+        };
     } else {
         Img = Image;
     }
@@ -821,7 +990,6 @@ var isNode = function () {
                     };
 
                     analyseImages(normalise(images[0], width, height), normalise(images[1], width, height), width, height);
-
                     triggerDataUpdate();
                 }
             }
